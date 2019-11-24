@@ -61,28 +61,40 @@ class BankAdderCallback:
             raise ValueError("Unknown State.")
 
     def initial_command_call(self, update, context):
-        self.bank = str(update.message.text).strip().split()[1]
-        message_text = str('Bank {} selected.'.format(self.bank))
+        user = update.message.from_user
+        bank = str(update.message.text).strip().split()[1]
+        message_text = str('Bank {} selected.'.format(bank))
         update.message.reply_text(message_text)
         wrapper = self.wrapper
-        self.auth_url, self.begin_url,  (self.api_client, self.auth_api) = wrapper.getLoginURLandAPI(self.bank)
-        update.message.reply_text(util.createUserActionString(self.auth_url, self.begin_url))
+        auth_url, begin_url,  (api_client, auth_api) = wrapper.getLoginURLandAPI(bank)
+        update.message.reply_text(util.createUserActionString(auth_url, begin_url))
+        self.model.get(user).api_client = api_client
+        self.model.get(user).auth_api = auth_api
+        self.model.get(user).bank = bank
+        self.model.get(user).auth_url = auth_url
+        self.model.get(user).begin_url = begin_url
         assert self.state is LINK
         return self.state
 
     def link_command_call(self, update, context):
-        self.link = update.message.text
-        self.aisp_api, self.token = self.wrapper.getUserTokenAndAPI(self.bank, self.api_client, self.auth_api, self.link)
+        user = update.message.from_user
+        link = update.message.text
+        api_client = self.model.get(user).api_client
+        auth_api = self.model.get(user).auth_api
+        bank = self.model.get(user).bank
+        self.aisp_api, self.token = self.wrapper.getUserTokenAndAPI(bank, api_client, auth_api, link)
+        self.model.get(user).aisp_api = self.aisp_api
         self.add_info_to_model(update, context)
         return ConversationHandler.END
 
     def add_info_to_model(self, update, context):
         user = update.message.from_user
         wrapper = self.wrapper
-        accounts = wrapper.getUserAccounts(self.aisp_api)
+        aisp_api = self.model.get(user).aisp_api
+        accounts = wrapper.getUserAccounts(aisp_api)
         for account in accounts:
-            transactions = wrapper.getAccountTransactions(self.aisp_api, account)
-            balance, currency = wrapper.getAccountBalance(self.aisp_api, account)
+            transactions = wrapper.getAccountTransactions(aisp_api, account)
+            balance, currency = wrapper.getAccountBalance(aisp_api, account)
             self.model.get(user).addAccount(account, balance, currency)
             self.model.get(user).addProcessedTransactions(transactions, account)
 

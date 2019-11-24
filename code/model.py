@@ -27,6 +27,13 @@ class Model:
             self.totalSpent = defaultdict(float)
             self.totalLimit = None
 
+            self.aisp_api = None
+            self.api_client = None
+            self.auth_api = None
+            self.bank = None
+            self.auth_url = None
+            self.begin_url = None
+
         def setLimit(self, limit, currency):
             self.totalLimit = defaultdict(float)
             for destination in self.currencies:
