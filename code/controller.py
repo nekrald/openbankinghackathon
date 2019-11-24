@@ -35,7 +35,6 @@ def help(update, context):
 
             /setlimit AMOUNT CUR -- sets limit to the amount AMOUNT in currency CUR
             /getlimit CUR -- prints the limit in currency CUR
-            /freedom CUR  -- prints the freedom in currency CUR
             /paid    CUR  -- prints amount paid in currency CUR
     """
     update.message.reply_text(help_text)
@@ -76,8 +75,13 @@ class BankAdderCallback:
         return ConversationHandler.END
 
     def add_info_to_model(self):
-        # TODO(nekrald): UPDATE the model
-        pass
+        wrapper = self.wrapper
+        accounts = wrapper.getUserAccounts(self.aisp_api)
+        for account in accounts:
+            transactions = getAccountTransactions(self.aisp_api, account)
+            balance, currency = getAccountBalance(self.aisp_api, account)
+            model.addAccount(account, balance, currency)
+            model.addProcessedTransactions(transactions, account)
 
 
 def cancel(update, context):
@@ -90,60 +94,72 @@ class DisplayAccountsCallback:
     def __init__(self, model):
         self.model = model
     def __call__(self, update, context):
-        raise NotImplemented
+        for account, (amount, currency) in self.model.account2info.items():
+            update.message.reply_text('{}\t{}\t{}'.format(account, amount, currency))
 
 
 class TotalBalanceCallback:
     def __init__(self, model):
         self.model = model
     def __call__(self, update, context):
-        raise NotImplemented
+        currency = str(update.message.text).strip().split()[1]
+        update.message.reply_text(str(self.model.totalBalance[currency]))
+
 
 # Transactions
 class ListCategoriesCallback:
     def __init__(self, model):
             self.model = model
     def __call__(self, update, context):
-        raise NotImplemented
+        update.message.reply_text("\n".join(self.model.categories))
 
 class ShowCategoryTotalCallback:
     def __init__(self, model):
         self.model = model
     def __call__(self, update, context):
-        raise NotImplemented
+        category = str(update.message.text).strip().split()[1]
+        currency = str(update.message.text).strip().split()[2]
+        total = self.model.category2spend[category][currency]
+        update.message.reply_text(str(total))
+
 
 class ShowCategoryTransactionsCallback:
     def __init__(self, model):
         self.model = model
     def __call__(self, update, context):
-        raise NotImplemented
+        category = str(update.message.text).strip().split()[1]
+        for amount, currency, what in self.model.category2transactions[category]:
+            update.message.reply_text(amount + "\n" + currency + "\n" + what)
 
 # Limits
 class SetLimitCallback:
     def __init__(self, model):
         self.model = model
     def __call__(self, update, context):
-        raise NotImplemented
+        amount = float(update.message.text).strip().split()[1]
+        currency = str(update.message.text).strip().split()[2]
+        self.model.setLimit(amount, currency)
+        update.message.reply_text("Limit set")
+
 
 class ShowLimitCallback:
     def __init__(self, model):
         self.model = model
     def __call__(self, update, context):
-        raise NotImplemented
-
-class ShowFreedomCallback:
-    def __init__(self, model):
-        self.model = model
-    def __call__(self, update, context):
-        raise NotImplemented
+        currency = str(update.message.text).strip().split()[1]
+        if self.model.totalLimit is None:
+            update.message.reply_text("No limit is set")
+        else:
+            limit = self.model.totalLimit[currency]
+            update.message.reply_text(str(limit))
 
 class ShowSpentCallback:
     def __init__(self, model):
         self.model = model
     def __call__(self, update, context):
-        raise NotImplemented
-
-
+        currency = str(update.message.text).strip().split()[1]
+        spent = model.totalSpent[currency]
+        update.message.reply_text(str(limit))
 
 
 class Controller():
@@ -192,7 +208,6 @@ class Controller():
 
             dispatcher.add_handler(CommandHandler("setlimit", self.set_limit_callback))
             dispatcher.add_handler(CommandHandler("getlimit", self.show_limit_callback))
-            dispatcher.add_handler(CommandHandler("freedom", self.show_freedom_callback))
             dispatcher.add_handler(CommandHandler("paid", self.paid_callback))
 
             conv_handler = ConversationHandler(
