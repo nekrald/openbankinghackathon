@@ -7,7 +7,7 @@ from telegram.ext import (Updater, CommandHandler, MessageHandler, Filters,
 from wrapper import APIWrapper
 import util
 
-from model import Model, Rates
+from model import Model, Rates, UserModel
 
 
 # States for add dialogue.
@@ -73,21 +73,21 @@ class BankAdderCallback:
     def link_command_call(self, update, context):
         self.link = update.message.text
         self.aisp_api, self.token = self.wrapper.getUserTokenAndAPI(self.bank, self.api_client, self.auth_api, self.link)
-        self.add_info_to_model()
+        self.add_info_to_model(update, context)
         return ConversationHandler.END
 
-    def add_info_to_model(self):
+    def add_info_to_model(self, update, context):
+        user = update.message.from_user
         wrapper = self.wrapper
         accounts = wrapper.getUserAccounts(self.aisp_api)
         for account in accounts:
             transactions = wrapper.getAccountTransactions(self.aisp_api, account)
             balance, currency = wrapper.getAccountBalance(self.aisp_api, account)
-            self.model.addAccount(account, balance, currency)
-            self.model.addProcessedTransactions(transactions, account)
+            self.model.get(user).addAccount(account, balance, currency)
+            self.model.get(user).addProcessedTransactions(transactions, account)
 
 
 def cancel(update, context):
-    user = update.message.from_user
     update.message.reply_text("Conversation Cancelled.")
     return ConversationHandler.END
 
@@ -96,7 +96,8 @@ class DisplayAccountsCallback:
     def __init__(self, model):
         self.model = model
     def __call__(self, update, context):
-        for account, (amount, currency) in self.model.account2info.items():
+        user = update.message.from_user
+        for account, (amount, currency) in self.model.get(user).account2info.items():
             update.message.reply_text('{}\t{}\t{}'.format(account, amount, currency))
 
 
@@ -104,11 +105,12 @@ class TotalBalanceCallback:
     def __init__(self, model):
         self.model = model
     def __call__(self, update, context):
+        user = update.message.from_user
         try:
             currency = str(update.message.text).strip().split()[1]
         except Exception as ex:
             currency = 'PLN'
-        update.message.reply_text(str(self.model.totalBalance[currency]))
+        update.message.reply_text(str(self.model.get(user).totalBalance[currency]))
 
 
 # Transactions
@@ -116,15 +118,17 @@ class ListCategoriesCallback:
     def __init__(self, model):
             self.model = model
     def __call__(self, update, context):
-        update.message.reply_text("\n".join(self.model.categories))
+        user = update.message.from_user
+        update.message.reply_text("\n".join(self.model.get(user).categories))
 
 class ShowCategoryTotalCallback:
     def __init__(self, model):
         self.model = model
     def __call__(self, update, context):
+        user = update.message.from_user
         category = str(update.message.text).strip().split()[1]
         currency = str(update.message.text).strip().split()[2]
-        total = self.model.category2spent[category][currency]
+        total = self.model.get(user).category2spent[category][currency]
         update.message.reply_text(str(total))
 
 
@@ -132,8 +136,9 @@ class ShowCategoryTransactionsCallback:
     def __init__(self, model):
         self.model = model
     def __call__(self, update, context):
+        user = update.message.from_user
         category = str(update.message.text).strip().split()[1]
-        for amount, currency, what in self.model.category2transactions[category]:
+        for amount, currency, what in self.model.get(user).category2transactions[category]:
             update.message.reply_text(str(amount) + "\n" + str(currency) + "\n" + str(what))
 
 # Limits
@@ -141,9 +146,10 @@ class SetLimitCallback:
     def __init__(self, model):
         self.model = model
     def __call__(self, update, context):
+        user = update.message.from_user
         amount = float(update.message.text.strip().split()[1])
         currency = str(update.message.text).strip().split()[2]
-        self.model.setLimit(amount, currency)
+        self.model.get(user).setLimit(amount, currency)
         update.message.reply_text("Limit set")
 
 
@@ -151,19 +157,21 @@ class ShowLimitCallback:
     def __init__(self, model):
         self.model = model
     def __call__(self, update, context):
+        user = update.message.from_user
         currency = str(update.message.text).strip().split()[1]
-        if self.model.totalLimit is None:
+        if self.model.get(user).totalLimit is None:
             update.message.reply_text("No limit is set")
         else:
-            limit = self.model.totalLimit[currency]
+            limit = self.model.get(user).totalLimit[currency]
             update.message.reply_text(str(limit))
 
 class ShowSpentCallback:
     def __init__(self, model):
         self.model = model
     def __call__(self, update, context):
+        user = update.message.from_user
         currency = str(update.message.text).strip().split()[1]
-        spent = self.model.totalSpent[currency]
+        spent = self.model.get(user).totalSpent[currency]
         update.message.reply_text(str(spent))
 
 
@@ -181,7 +189,7 @@ class Controller():
         def __init__(self):
             self.make_rates()
             self.token='1032122116:AAFMa6ewEqjbV9cYsu34kekzLJZo7ITq3Jw'
-            self.model = Model(self.currencies, self.rates, util.Categorizer().get_categories())
+            self.model = UserModel(self.currencies, self.rates, util.Categorizer().get_categories())
 
             self.add_callback = BankAdderCallback(self.model)
 

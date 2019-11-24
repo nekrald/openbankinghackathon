@@ -54,3 +54,17 @@ class Model:
                                 self.totalSpent[destination] += amount * self.rates.exchange[
                                         currency][destination]
 
+class UserModel:
+    def __init__(self, currencies, rates, categories):
+        self.currencies = currencies
+        self.rates = rates
+        self.categories = categories
+        self.models = {}
+
+    def get(self, user):
+        if user not in self.models:
+            self.models[user] = Model(self.currencies, self.rates, self.categories)
+        return self.models[user]
+
+
+
