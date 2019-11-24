@@ -78,11 +78,12 @@ class APIWrapper:
         def getUserAccounts(self, aisp_api):
             accounts = aisp_api.get_accounts()
             logging.info("Accounts info: %s", accounts)
-            processed = [(account.account_id.iban) for account in accounts]
+            processed = [(account.account_id.iban) for account in accounts.accounts]
             return processed
 
 
         def getAccountTransactions(self, aisp_api, account_id):
+            date_format = '%Y-%m-%d'
             raw_transactions = aisp_api.get_account_transactions(account_id,
                     date_from=(datetime.datetime.now() - datetime.timedelta(days=89)).strftime(date_format),
                     date_to=datetime.datetime.now().strftime(date_format))
@@ -90,8 +91,8 @@ class APIWrapper:
 
         def getAccountBalance(self, aisp_api, account_id):
             raw_balance = aisp_api.get_account_balances(account_id)
-            balance = float(raw_balance['balances'][0]['balance_amount']['amount'])
-            currency = raw_balance['balances'][0]['balance_amount']['amount']['currency']
+            balance = float(raw_balance.balances[0].balance_amount.amount)
+            currency = raw_balance.balances[0].balance_amount.currency
             return balance, currency
 
 

@@ -32,21 +32,23 @@ class Categorizer():
         for category in self.categories:
             keywords = self.keywords[category]
             for key in keywords:
-                if key in description.lower() or key is None:
+                if key is None or key in description.lower():
                     return category
 
 
 def analyzeTransactions(raw_transactions: list):
-    transaction_list = raw_transactions['transactions']
+    transaction_list = raw_transactions.transactions
     categorizer = Categorizer()
     result = defaultdict(list)
     for item in transaction_list:
-        amount = float(item['transaction_amount']['amount'])
-        currency = item['transaction_amount']['currency']
-        description = item['remittance_information'][0]
+        amount = float(item.transaction_amount.amount)
+        currency = item.transaction_amount.currency
+        print("Remittance: ", item.remittance_information)
+        description = str(item.remittance_information[0])
+        print("Description:", description)
         category = categorizer.assign_category(description)
-        result[category].append( (amount, currency, descripton) )
-    return result, categorizer.categories
+        result[category].append( (amount, currency, description) )
+    return result
 
 
 def createUserActionString(url, begin):

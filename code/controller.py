@@ -7,6 +7,8 @@ from telegram.ext import (Updater, CommandHandler, MessageHandler, Filters,
 from wrapper import APIWrapper
 import util
 
+from model import Model, Rates
+
 
 # States for add dialogue.
 CMD, LINK = range(2)
@@ -71,17 +73,17 @@ class BankAdderCallback:
     def link_command_call(self, update, context):
         self.link = update.message.text
         self.aisp_api, self.token = self.wrapper.getUserTokenAndAPI(self.bank, self.api_client, self.auth_api, self.link)
-        self.add_info_to_model
+        self.add_info_to_model()
         return ConversationHandler.END
 
     def add_info_to_model(self):
         wrapper = self.wrapper
         accounts = wrapper.getUserAccounts(self.aisp_api)
         for account in accounts:
-            transactions = getAccountTransactions(self.aisp_api, account)
-            balance, currency = getAccountBalance(self.aisp_api, account)
-            model.addAccount(account, balance, currency)
-            model.addProcessedTransactions(transactions, account)
+            transactions = wrapper.getAccountTransactions(self.aisp_api, account)
+            balance, currency = wrapper.getAccountBalance(self.aisp_api, account)
+            self.model.addAccount(account, balance, currency)
+            self.model.addProcessedTransactions(transactions, account)
 
 
 def cancel(update, context):
@@ -102,7 +104,10 @@ class TotalBalanceCallback:
     def __init__(self, model):
         self.model = model
     def __call__(self, update, context):
-        currency = str(update.message.text).strip().split()[1]
+        try:
+            currency = str(update.message.text).strip().split()[1]
+        except Exception as ex:
+            currency = 'PLN'
         update.message.reply_text(str(self.model.totalBalance[currency]))
 
 
@@ -119,7 +124,7 @@ class ShowCategoryTotalCallback:
     def __call__(self, update, context):
         category = str(update.message.text).strip().split()[1]
         currency = str(update.message.text).strip().split()[2]
-        total = self.model.category2spend[category][currency]
+        total = self.model.category2spent[category][currency]
         update.message.reply_text(str(total))
 
 
@@ -129,14 +134,14 @@ class ShowCategoryTransactionsCallback:
     def __call__(self, update, context):
         category = str(update.message.text).strip().split()[1]
         for amount, currency, what in self.model.category2transactions[category]:
-            update.message.reply_text(amount + "\n" + currency + "\n" + what)
+            update.message.reply_text(str(amount) + "\n" + str(currency) + "\n" + str(what))
 
 # Limits
 class SetLimitCallback:
     def __init__(self, model):
         self.model = model
     def __call__(self, update, context):
-        amount = float(update.message.text).strip().split()[1]
+        amount = float(update.message.text.strip().split()[1])
         currency = str(update.message.text).strip().split()[2]
         self.model.setLimit(amount, currency)
         update.message.reply_text("Limit set")
@@ -158,8 +163,8 @@ class ShowSpentCallback:
         self.model = model
     def __call__(self, update, context):
         currency = str(update.message.text).strip().split()[1]
-        spent = model.totalSpent[currency]
-        update.message.reply_text(str(limit))
+        spent = self.model.totalSpent[currency]
+        update.message.reply_text(str(spent))
 
 
 class Controller():
@@ -173,10 +178,10 @@ class Controller():
             self.rates.set_conversion('GBP', 'EUR', 1.16)
             self.rates.set_conversion('GBP', 'USD', 1.28)
 
-	def __init__(self):
+        def __init__(self):
             self.make_rates()
             self.token='1032122116:AAFMa6ewEqjbV9cYsu34kekzLJZo7ITq3Jw'
-            self.model = Model(currencies, rates, util.Categorizer().get_categories())
+            self.model = Model(self.currencies, self.rates, util.Categorizer().get_categories())
 
             self.add_callback = BankAdderCallback(self.model)
 
@@ -192,7 +197,7 @@ class Controller():
             self.show_freedom_callback = ShowLimitCallback(self.model)
             self.paid_callback = ShowSpentCallback(self.model)
 
-	def run(self):
+        def run(self):
             updater = Updater(self.token, use_context=True)
             dispatcher = updater.dispatcher
 
@@ -204,7 +209,7 @@ class Controller():
 
             dispatcher.add_handler(CommandHandler("categories", self.list_category_callback))
             dispatcher.add_handler(CommandHandler("spent", self.category_spent_callback))
-            dispatcher.add_handler(CommandHandler("transactions", self.category_transactions)
+            dispatcher.add_handler(CommandHandler("transactions", self.category_transactions))
 
             dispatcher.add_handler(CommandHandler("setlimit", self.set_limit_callback))
             dispatcher.add_handler(CommandHandler("getlimit", self.show_limit_callback))
