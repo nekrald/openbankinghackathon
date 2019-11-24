@@ -21,13 +21,22 @@ def start(update, context):
 def help(update, context):
     help_text = """
         Available commands:
+            /start -- starts this bot
             /help -- prints this help message
             /add BANK  -- adds accounts from a user in the specified bank
                 possible options: [Alior, KIR].
-            /show total CUR -- prints sum of values in all accounts converted to currency CUR
-            /show balances [CUR] -- prints all account balances in the currency CUR, or in default currency if not specified
-            /show transactions [CATEGORY] -- shows all transactions per category (if specified), or just all transactions
-            /summary CATEGORY -- gives summary for the category
+
+            /money CUR -- gives total balance in currency CUR
+            /accounts  -- lists accounts and their balances
+
+            /categories -- lists all available categories
+            /spent CAT CUR -- amount spent to category CAT in currency CUR
+            /transactions CAT -- lists transactions in category CAT
+
+            /setlimit AMOUNT CUR -- sets limit to the amount AMOUNT in currency CUR
+            /getlimit CUR -- prints the limit in currency CUR
+            /freedom CUR  -- prints the freedom in currency CUR
+            /paid    CUR  -- prints amount paid in currency CUR
     """
     update.message.reply_text(help_text)
 
@@ -71,31 +80,120 @@ class BankAdderCallback:
         pass
 
 
-def summary(update, context):
-    raise NotImplemented
-
-
-def show(update, context):
-    raise NotImplemented
-
-
 def cancel(update, context):
     user = update.message.from_user
     update.message.reply_text("Conversation Cancelled.")
     return ConversationHandler.END
 
+# Accounts
+class DisplayAccountsCallback:
+    def __init__(self, model):
+        self.model = model
+    def __call__(self, update, context):
+        raise NotImplemented
+
+
+class TotalBalanceCallback:
+    def __init__(self, model):
+        self.model = model
+    def __call__(self, update, context):
+        raise NotImplemented
+
+# Transactions
+class ListCategoriesCallback:
+    def __init__(self, model):
+            self.model = model
+    def __call__(self, update, context):
+        raise NotImplemented
+
+class ShowCategoryTotalCallback:
+    def __init__(self, model):
+        self.model = model
+    def __call__(self, update, context):
+        raise NotImplemented
+
+class ShowCategoryTransactionsCallback:
+    def __init__(self, model):
+        self.model = model
+    def __call__(self, update, context):
+        raise NotImplemented
+
+# Limits
+class SetLimitCallback:
+    def __init__(self, model):
+        self.model = model
+    def __call__(self, update, context):
+        raise NotImplemented
+
+class ShowLimitCallback:
+    def __init__(self, model):
+        self.model = model
+    def __call__(self, update, context):
+        raise NotImplemented
+
+class ShowFreedomCallback:
+    def __init__(self, model):
+        self.model = model
+    def __call__(self, update, context):
+        raise NotImplemented
+
+class ShowSpentCallback:
+    def __init__(self, model):
+        self.model = model
+    def __call__(self, update, context):
+        raise NotImplemented
+
+
+
 
 class Controller():
+        def make_rates(self):
+            self.rates = Rates()
+            self.currencies = ['USD', 'EUR', 'GBP', 'PLN']
+            self.rates.set_conversion('USD', 'PLN', 3.9)
+            self.rates.set_conversion('EUR', 'PLN', 4.3)
+            self.rates.set_conversion('GBP', 'PLN', 5.0)
+            self.rates.set_conversion('EUR', 'USD', 1.1)
+            self.rates.set_conversion('GBP', 'EUR', 1.16)
+            self.rates.set_conversion('GBP', 'USD', 1.28)
+
 	def __init__(self):
+            self.make_rates()
             self.token='1032122116:AAFMa6ewEqjbV9cYsu34kekzLJZo7ITq3Jw'
-            self.model = None
+            self.model = Model(currencies, rates, util.Categorizer().get_categories())
+
             self.add_callback = BankAdderCallback(self.model)
+
+            self.balance_callback = TotalBalanceCallback(self.model)
+            self.account_callback = DisplayAccountsCallback(self.model)
+
+            self.list_category_callback = ListCategoriesCallback(self.model)
+            self.category_spent_callback = ShowCategoryTotalCallback(self.model)
+            self.category_transactions = ShowCategoryTransactionsCallback(self.model)
+
+            self.set_limit_callback = SetLimitCallback(self.model)
+            self.show_limit_callback = ShowLimitCallback(self.model)
+            self.show_freedom_callback = ShowLimitCallback(self.model)
+            self.paid_callback = ShowSpentCallback(self.model)
 
 	def run(self):
             updater = Updater(self.token, use_context=True)
             dispatcher = updater.dispatcher
+
             dispatcher.add_handler(CommandHandler("start", start))
             dispatcher.add_handler(CommandHandler("help", help))
+
+            dispatcher.add_handler(CommandHandler("money", self.balance_callback))
+            dispatcher.add_handler(CommandHandler("accounts", self.account_callback))
+
+            dispatcher.add_handler(CommandHandler("categories", self.list_category_callback))
+            dispatcher.add_handler(CommandHandler("spent", self.category_spent_callback))
+            dispatcher.add_handler(CommandHandler("transactions", self.category_transactions)
+
+            dispatcher.add_handler(CommandHandler("setlimit", self.set_limit_callback))
+            dispatcher.add_handler(CommandHandler("getlimit", self.show_limit_callback))
+            dispatcher.add_handler(CommandHandler("freedom", self.show_freedom_callback))
+            dispatcher.add_handler(CommandHandler("paid", self.paid_callback))
 
             conv_handler = ConversationHandler(
                 entry_points=[CommandHandler('add', self.add_callback)],
