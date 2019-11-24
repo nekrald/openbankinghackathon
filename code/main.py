@@ -1,8 +1,10 @@
 from wrapper import APIWrapper
+from controller import Controller
 
 
 def main():
-	raise NotImplemented
+    controller = Controller()
+    controller.run()
 
 
 if __name__ == '__main__':
